@@ -17,10 +17,12 @@ export const MahrCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sources, setSources] = useState<{title: string, uri: string}[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchLivePrice = async () => {
     setIsFetching(true);
     setSources([]);
+    setError(null);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
@@ -45,18 +47,14 @@ export const MahrCalculator: React.FC = () => {
           .map(c => ({ title: c.web.title, uri: c.web.uri }));
         setSources(foundSources);
       }
-    } catch (error) {
-      console.error("Error fetching silver price:", error);
+    } catch (err: any) {
+      console.error("Error fetching silver price:", err);
+      setError("Market data temporarily unavailable. Please try again or enter price manually.");
+      if (err.message?.includes("not found")) {
+        console.warn("Model 'gemini-3-flash-preview' not found. Ensure API key has access.");
+      }
     } finally {
       setIsFetching(false);
-    }
-  };
-
-  const handleNisabChange = (val: string) => {
-    const nisab = parseFloat(val);
-    if (nisab > 0) {
-      setSilverPricePerGram(nisab / SILVER_NISAB_DIVISOR);
-      setLastUpdated(null);
     }
   };
 
@@ -78,6 +76,12 @@ export const MahrCalculator: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl font-medium">
+            {error}
+          </div>
+        )}
 
         <div className="grid md:grid-cols-2 gap-6 items-end">
           <div className="space-y-4">
