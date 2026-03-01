@@ -9,7 +9,48 @@ A comprehensive suite of tools for Zakat, Fitrana, and Mahr calculations, built 
 - **Live Market Data:** Powered by Google Search via Gemini AI.
 - **Settings:** Manually configure your Gemini API key for easy deployment.
 
-## How to Deploy to Netlify (Drag & Drop)
+## How to Deploy via GitHub to Netlify (Recommended)
+
+This is the best way to keep your site updated automatically whenever you push changes to GitHub.
+
+### 1. Push to GitHub
+1. Create a new repository on [GitHub](https://github.com/new).
+2. In your local project folder, run:
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git branch -M main
+   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+   git push -u origin main
+   ```
+
+### 2. Connect to Netlify
+1. Log in to [Netlify](https://app.netlify.com/).
+2. Click **Add new site** > **Import an existing project**.
+3. Select **GitHub** and authorize Netlify.
+4. Select your repository.
+5. Netlify should automatically detect the build settings:
+   - **Build command:** `npm run build`
+   - **Publish directory:** `dist`
+6. Click **Deploy site**.
+
+### 3. Configure Custom Domain (hisabbayt.com)
+1. In Netlify, go to **Site settings** > **Domain management**.
+2. Click **Add custom domain** and enter `hisabbayt.com`.
+3. Follow the instructions to update your DNS settings (usually adding a CNAME or A record at your domain provider).
+
+### 4. Set Environment Variables
+1. In Netlify, go to **Site settings** > **Environment variables**.
+2. Click **Add a variable**.
+3. Key: `VITE_GEMINI_API_KEY`
+4. Value: `YOUR_GEMINI_API_KEY`
+5. Click **Save**.
+6. Trigger a new deploy (Go to **Deploys** > **Trigger deploy** > **Clear cache and deploy site**).
+
+---
+
+## Alternative: Manual Deploy (Drag & Drop)
 
 To deploy this application manually to Netlify, follow these steps:
 
