@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Crescent, Coins, Heart, Sun, Moon, ShoppingBag, Home as HomeIcon, Mail } from './components/Icons';
+import { Crescent, Coins, Heart, Sun, Moon, ShoppingBag, Home as HomeIcon, Mail, Settings } from './components/Icons';
+import { SettingsModal } from './components/SettingsModal';
 import { ZakatCalculator } from './components/ZakatCalculator';
 import { MahrCalculator } from './components/MahrCalculator';
 import { ZakatFitrCalculator } from './components/ZakatFitrCalculator';
@@ -10,6 +11,7 @@ import { TabType } from './types';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('home');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' || 

@@ -22,8 +22,13 @@ export const ZakatFitrCalculator: React.FC = () => {
     setError(null);
     setSources([]);
     try {
-      const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key not found. Please set GEMINI_API_KEY or VITE_GEMINI_API_KEY.");
+      const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
+                     import.meta.env.VITE_GEMINI_API_KEY || 
+                     localStorage.getItem('HISABBAYT_GEMINI_API_KEY');
+
+      if (!apiKey) {
+        throw new Error("API Key not found. Please set it in Settings or via environment variables.");
+      }
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
