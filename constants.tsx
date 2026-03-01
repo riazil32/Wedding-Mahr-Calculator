@@ -1,17 +1,10 @@
 
 import React from 'react';
-import { BudgetCategory, MahrType } from './types';
+import { MahrType } from './types';
 
-export const BUDGET_CATEGORIES: BudgetCategory[] = [
-  { key: 'venue', name: 'Venue & Nikkah Hall', icon: '🕌', color: 'bg-emerald-100 text-emerald-700', basePercentage: 0.25 },
-  { key: 'catering', name: 'Catering & Walima', icon: '🍽️', color: 'bg-teal-100 text-teal-700', basePercentage: 0.30 },
-  { key: 'mehndi', name: 'Mehndi & Pre-Wedding', icon: '✨', color: 'bg-amber-100 text-amber-700', basePercentage: 0.08 },
-  { key: 'photography', name: 'Photography & Cinema', icon: '📸', color: 'bg-purple-100 text-purple-700', basePercentage: 0.10 },
-  { key: 'decor', name: 'Floral & Stage Decor', icon: '💐', color: 'bg-pink-100 text-pink-700', basePercentage: 0.10 },
-  { key: 'attire', name: 'Attire & Jewellery', icon: '👗', color: 'bg-rose-100 text-rose-700', basePercentage: 0.08 },
-  { key: 'gifts', name: 'Gifts & Favours', icon: '🎁', color: 'bg-indigo-100 text-indigo-700', basePercentage: 0.05 },
-  { key: 'other', name: 'Logistics & Extras', icon: '🚗', color: 'bg-blue-100 text-blue-700', basePercentage: 0.04 }
-];
+export const ZAKAT_NISAB_SILVER_GRAMS = 612.36;
+export const ZAKAT_NISAB_GOLD_GRAMS = 87.48;
+export const ZAKAT_RATE = 0.025;
 
 export const MAHR_TYPES: MahrType[] = [
   { 

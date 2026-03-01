@@ -1,12 +1,11 @@
 
-export type TabType = 'budget' | 'mahr';
+export type TabType = 'home' | 'zakat' | 'fitr' | 'mahr' | 'contact';
 
-export interface BudgetCategory {
-  key: string;
+export interface ZakatAsset {
+  id: string;
   name: string;
-  icon: string;
-  color: string;
-  basePercentage: number;
+  value: number;
+  description: string;
 }
 
 export interface MahrType {
