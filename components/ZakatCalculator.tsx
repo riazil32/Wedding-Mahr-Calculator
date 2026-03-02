@@ -43,7 +43,7 @@ export const ZakatCalculator: React.FC = () => {
       
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: "What is the current market price of Gold and Silver per gram in GBP (British Pounds)? Return a JSON object with 'gold' and 'silver' keys and numeric values.",
         config: {
           tools: [{ googleSearch: {} }],
@@ -59,7 +59,7 @@ export const ZakatCalculator: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Error fetching prices:", err);
-      setError("Market data temporarily unavailable. Using default rates.");
+      setError(`Error: ${err.message || "Market data temporarily unavailable"}. Please check your API key in Settings.`);
     } finally {
       setIsFetching(false);
     }

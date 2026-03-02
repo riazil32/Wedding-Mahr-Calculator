@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Info, Sparkles } from './Icons';
+import { X, Info, Sparkles, RefreshCw } from './Icons';
+import { GoogleGenAI } from "@google/genai";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -10,6 +11,8 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [apiKey, setApiKey] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const savedKey = localStorage.getItem('HISABBAYT_GEMINI_API_KEY');
@@ -25,6 +28,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setIsSaved(false);
       onClose();
     }, 1500);
+  };
+
+  const handleTestConnection = async () => {
+    if (!apiKey) {
+      setTestResult({ success: false, message: 'Please enter an API key first.' });
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: "Say 'Success' if you can read this.",
+      });
+      
+      if (response.text) {
+        setTestResult({ success: true, message: 'Connection successful! Your API key is valid.' });
+      } else {
+        throw new Error('Empty response from API');
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: `Connection failed: ${err.message || 'Unknown error'}` });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -72,24 +102,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </p>
           </div>
 
-          <button 
-            onClick={handleSave}
-            disabled={isSaved}
-            className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
-              isSaved 
-              ? 'bg-emerald-500 text-white' 
-              : 'bg-slate-900 dark:bg-white dark:text-slate-900 text-white hover:bg-slate-800 dark:hover:bg-slate-100'
-            }`}
-          >
-            {isSaved ? (
-              <>
-                <Sparkles className="w-5 h-5" />
-                Settings Saved!
-              </>
-            ) : (
-              'Save Configuration'
-            )}
-          </button>
+          {testResult && (
+            <div className={`p-4 rounded-xl text-sm font-medium animate-in fade-in slide-in-from-top-2 ${
+              testResult.success 
+              ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800/50' 
+              : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-800/50'
+            }`}>
+              {testResult.message}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button 
+              onClick={handleTestConnection}
+              disabled={isTesting || !apiKey}
+              className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isTesting ? 'animate-spin' : ''}`} />
+              {isTesting ? 'Testing...' : 'Test Connection'}
+            </button>
+            <button 
+              onClick={handleSave}
+              disabled={isSaved}
+              className={`flex-[2] py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                isSaved 
+                ? 'bg-emerald-500 text-white' 
+                : 'bg-slate-900 dark:bg-white dark:text-slate-900 text-white hover:bg-slate-800 dark:hover:bg-slate-100'
+              }`}
+            >
+              {isSaved ? (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  Saved!
+                </>
+              ) : (
+                'Save Configuration'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

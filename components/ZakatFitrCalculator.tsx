@@ -32,7 +32,7 @@ export const ZakatFitrCalculator: React.FC = () => {
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: "What is the current recommended Zakat ul Fitr (Fitrana) rate per person in the UK for 2026 in GBP? Please provide a single numeric value (the average or most common rate) and include sources in grounding metadata.",
         config: {
           tools: [{ googleSearch: {} }],
@@ -55,7 +55,7 @@ export const ZakatFitrCalculator: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Error fetching Fitr rate:", err);
-      setError("Could not fetch live rate. Using standard £5.00 rate.");
+      setError(`Error: ${err.message || "Could not fetch live rate"}. Please check your API key in Settings.`);
     } finally {
       setIsFetching(false);
     }

@@ -34,7 +34,7 @@ export const MahrCalculator: React.FC = () => {
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: "What is the current market price of silver per gram in GBP (British Pounds)? Please provide just the numeric value in your response text, and the sources in grounding metadata.",
         config: {
           tools: [{ googleSearch: {} }],
@@ -57,10 +57,7 @@ export const MahrCalculator: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Error fetching silver price:", err);
-      setError("Market data temporarily unavailable. Please try again or enter price manually.");
-      if (err.message?.includes("not found")) {
-        console.warn("Model 'gemini-3-flash-preview' not found. Ensure API key has access.");
-      }
+      setError(`Error: ${err.message || "Market data temporarily unavailable"}. Please check your API key in Settings.`);
     } finally {
       setIsFetching(false);
     }
