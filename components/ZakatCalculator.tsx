@@ -44,18 +44,27 @@ export const ZakatCalculator: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
-        contents: "What is the current market price of Gold and Silver per gram in GBP (British Pounds)? Return a JSON object with 'gold' and 'silver' keys and numeric values.",
+        contents: `What is the current market price of Gold and Silver per gram in GBP (British Pounds) for today, March 2, 2026? 
+        Please provide the values in this format:
+        GOLD: [value]
+        SILVER: [value]
+        Only provide the numeric values after the labels.`,
         config: {
           tools: [{ googleSearch: {} }],
-          responseMimeType: "application/json"
         },
       });
 
-      const data = JSON.parse(response.text || "{}");
-      if (data.gold && data.silver) {
-        setGoldPrice(data.gold);
-        setSilverPrice(data.silver);
+      const text = response.text || "";
+      const goldMatch = text.match(/GOLD:\s*£?(\d+(\.\d+)?)/i);
+      const silverMatch = text.match(/SILVER:\s*£?(\d+(\.\d+)?)/i);
+
+      if (goldMatch) setGoldPrice(parseFloat(goldMatch[1]));
+      if (silverMatch) setSilverPrice(parseFloat(silverMatch[1]));
+      
+      if (goldMatch || silverMatch) {
         setLastUpdated(new Date().toLocaleTimeString());
+      } else {
+        throw new Error("Could not parse prices from AI response. Please try again or update manually.");
       }
     } catch (err: any) {
       console.error("Error fetching prices:", err);
@@ -98,12 +107,30 @@ export const ZakatCalculator: React.FC = () => {
           
           <div className="flex flex-wrap gap-4">
             <div className="bg-slate-50 dark:bg-slate-800 px-6 py-3 rounded-2xl border border-slate-100 dark:border-slate-700">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Gold (24k)</p>
-              <p className="text-lg font-black text-slate-800 dark:text-white">£{goldPrice.toFixed(2)}</p>
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Gold (24k) /g</p>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-bold">£</span>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  value={goldPrice}
+                  onChange={(e) => setGoldPrice(parseFloat(e.target.value) || 0)}
+                  className="bg-transparent border-none outline-none text-lg font-black text-slate-800 dark:text-white w-20"
+                />
+              </div>
             </div>
             <div className="bg-slate-50 dark:bg-slate-800 px-6 py-3 rounded-2xl border border-slate-100 dark:border-slate-700">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Silver</p>
-              <p className="text-lg font-black text-slate-800 dark:text-white">£{silverPrice.toFixed(2)}</p>
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Silver /g</p>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-bold">£</span>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  value={silverPrice}
+                  onChange={(e) => setSilverPrice(parseFloat(e.target.value) || 0)}
+                  className="bg-transparent border-none outline-none text-lg font-black text-slate-800 dark:text-white w-20"
+                />
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <a 
