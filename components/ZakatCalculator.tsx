@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Info, Crescent, Coins, Wallet, Banknote, TrendingUp, ChevronRight } from './Icons';
+import { Info, Crescent, Coins, Wallet, Banknote, TrendingUp, ChevronRight, ExternalLink } from './Icons';
 import { ZAKAT_NISAB_SILVER_GRAMS, ZAKAT_NISAB_GOLD_GRAMS, ZAKAT_RATE } from '../constants';
 import { GoogleGenAI } from "@google/genai";
 
@@ -104,6 +104,26 @@ export const ZakatCalculator: React.FC = () => {
             <div className="bg-slate-50 dark:bg-slate-800 px-6 py-3 rounded-2xl border border-slate-100 dark:border-slate-700">
               <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Silver</p>
               <p className="text-lg font-black text-slate-800 dark:text-white">£{silverPrice.toFixed(2)}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a 
+                href="https://www.bullionvault.com/gold-price-chart.do" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 hover:underline bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg border border-amber-100 dark:border-amber-800/50 flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Check Gold
+              </a>
+              <a 
+                href="https://www.bullionvault.com/silver-price-chart.do" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:underline bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-100 dark:border-slate-700 flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Check Silver
+              </a>
             </div>
             <button 
               onClick={fetchLivePrices}

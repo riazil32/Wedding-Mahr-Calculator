@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Info, Crescent, X, ChevronRight } from './Icons';
+import { Info, Crescent, X, ChevronRight, ExternalLink } from './Icons';
 import { MAHR_TYPES, SILVER_NISAB_DIVISOR } from '../constants';
 import { MahrType } from '../types';
 import { GoogleGenAI } from "@google/genai";
@@ -109,6 +109,15 @@ export const MahrCalculator: React.FC = () => {
             </div>
           </div>
           <div className="space-y-4">
+            <a 
+              href="https://www.bullionvault.com/silver-price-chart.do" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Check Live Silver Price Manually
+            </a>
             <button 
               onClick={fetchLivePrice}
               disabled={isFetching}

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Info, Crescent, Users, ShoppingBag, ChevronRight } from './Icons';
+import { Info, Crescent, Users, ShoppingBag, ChevronRight, ExternalLink } from './Icons';
 import { GoogleGenAI } from "@google/genai";
 
 const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -103,16 +103,27 @@ export const ZakatFitrCalculator: React.FC = () => {
                     />
                   </div>
                 </div>
-                <button 
-                  onClick={fetchLiveRate}
-                  disabled={isFetching}
-                  className={`flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-bold transition-all ${
-                    isFetching ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 border border-transparent dark:border-slate-700 shadow-lg'
-                  }`}
-                >
-                  <RefreshIcon className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
-                  {isFetching ? 'Fetching...' : 'Get Live Rate'}
-                </button>
+                <div className="flex flex-col gap-3">
+                  <a 
+                    href="https://nzf.org.uk/zakat-calculator/zakat-al-fitr/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Check NZF Fitrana Rate
+                  </a>
+                  <button 
+                    onClick={fetchLiveRate}
+                    disabled={isFetching}
+                    className={`flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-bold transition-all ${
+                      isFetching ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 border border-transparent dark:border-slate-700 shadow-lg'
+                    }`}
+                  >
+                    <RefreshIcon className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
+                    {isFetching ? 'Fetching...' : 'Get Live Rate'}
+                  </button>
+                </div>
               </div>
 
               {sources.length > 0 && (
