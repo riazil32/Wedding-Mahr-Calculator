@@ -43,10 +43,16 @@ This is the best way to keep your site updated automatically whenever you push c
 ### 4. Set Environment Variables
 1. In Netlify, go to **Site settings** > **Environment variables**.
 2. Click **Add a variable**.
-3. Key: `VITE_GEMINI_API_KEY`
+3. Key: `GEMINI_API_KEY`
 4. Value: `YOUR_GEMINI_API_KEY`
 5. Click **Save**.
 6. Trigger a new deploy (Go to **Deploys** > **Trigger deploy** > **Clear cache and deploy site**).
+
+### 🔒 Security Note
+We use a **Server-Side Proxy** to keep your API key hidden. 
+- **DO NOT** use the `VITE_` prefix for your Gemini API key. 
+- Variables starting with `VITE_` are automatically sent to the browser and are **NOT SECURE**.
+- Your key is safely stored on the server and accessed via `process.env.GEMINI_API_KEY`.
 
 ---
 
@@ -79,5 +85,5 @@ Your site is now fully functional and ready to use!
 ## Environment Variables (Optional)
 If you prefer to use Netlify's environment variables instead of the Settings modal:
 1. In Netlify, go to **Site settings** > **Environment variables**.
-2. Add a variable with the key `VITE_GEMINI_API_KEY` and your API key as the value.
+2. Add a variable with the key `GEMINI_API_KEY` and your API key as the value.
 3. Trigger a new deploy.

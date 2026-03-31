@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return data.uid is string && data.email is string &&
+             (!('displayName' in data) || data.displayName is string) &&
+             (!('photoURL' in data) || data.photoURL is string);
+    }
+
+    function isValidCalculation(data) {
+      return data.uid is string && 
+             data.type in ['zakat', 'fitrana', 'mahr'] &&
+             data.data is map &&
+             data.result is number &&
+             data.createdAt is string;
+    }
+
+    function isValidFinancialProfile(data) {
+      return data.uid is string &&
+             (!('total_assets_last_year' in data) || data.total_assets_last_year is number) &&
+             (!('zakat_anniversary_date' in data) || data.zakat_anniversary_date is string) &&
+             (!('mahr_total' in data) || data.mahr_total is number) &&
+             (!('mahr_paid' in data) || data.mahr_paid is number) &&
+             (!('household_size' in data) || data.household_size is number) &&
+             (!('updatedAt' in data) || data.updatedAt is string);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // User Profiles
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified();
+    }
+
+    // Financial Profiles
+    match /financial_profiles/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidFinancialProfile(request.resource.data);
+      allow update: if isOwner(userId) && isValidFinancialProfile(request.resource.data) && uidNotModified();
+    }
+
+    // Calculations
+    match /calculations/{calculationId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && isValidCalculation(request.resource.data);
+      allow update: if isAuthenticated() && isDocOwner() && isValidCalculation(request.resource.data) && uidNotModified();
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Stores basic user profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique Firebase Auth ID." },
+        "email": { "type": "string", "description": "The user's email address." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "photoURL": { "type": "string", "description": "The user's profile picture URL." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the profile was created." }
+      },
+      "required": ["uid", "email"]
+    },
+    "Calculation": {
+      "title": "Calculation",
+      "description": "Stores a saved calculation (Zakat, Fitrana, or Mahr).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The ID of the user who owns this calculation." },
+        "type": { "type": "string", "enum": ["zakat", "fitrana", "mahr"], "description": "The type of calculation." },
+        "label": { "type": "string", "description": "A user-provided label for the calculation (e.g., 'Ramadan 2024')." },
+        "data": { "type": "object", "description": "The raw calculation data." },
+        "result": { "type": "number", "description": "The final calculated amount." },
+        "currency": { "type": "string", "description": "The currency used." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the calculation was saved." }
+      },
+      "required": ["uid", "type", "data", "result", "createdAt"]
+    },
+    "UserFinancialProfile": {
+      "title": "UserFinancialProfile",
+      "description": "Stores persistent financial data for calculators.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The ID of the user." },
+        "total_assets_last_year": { "type": "number", "description": "Total assets from previous year." },
+        "zakat_anniversary_date": { "type": "string", "format": "date", "description": "The user's Zakat anniversary date (Hawl)." },
+        "mahr_total": { "type": "number", "description": "Total Mahr agreed upon." },
+        "mahr_paid": { "type": "number", "description": "Total Mahr already paid." },
+        "household_size": { "type": "integer", "description": "Number of people in the household for Fitrana." },
+        "nisab_adjustment": { "type": "number", "description": "Percentage adjustment for 'Real-World' prices (e.g. 5)." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "When the profile was last updated." }
+      },
+      "required": ["uid"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents."
+    },
+    "/financial_profiles/{userId}": {
+      "schema": "UserFinancialProfile",
+      "description": "User financial profile documents."
+    },
+    "/calculations/{calculationId}": {
+      "schema": "Calculation",
+      "description": "Saved calculations."
+    }
+  }
+}

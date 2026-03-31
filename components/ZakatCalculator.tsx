@@ -1,18 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { Info, Crescent, Coins, Wallet, Banknote, TrendingUp, ChevronRight, ExternalLink } from './Icons';
+import { Info, Crescent, Coins, Wallet, Banknote, TrendingUp, ChevronRight, ExternalLink, Save, RefreshCw } from './Icons';
 import { ZAKAT_NISAB_SILVER_GRAMS, ZAKAT_NISAB_GOLD_GRAMS, ZAKAT_RATE } from '../constants';
-import { GoogleGenAI } from "@google/genai";
-
-const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>
-  </svg>
-);
+import { useFirebase } from '../src/context/FirebaseContext';
+import { useFinancialData } from '../src/context/UserContext';
+import { Save as SaveIcon, Zap } from 'lucide-react';
+import { getLiveMarketRates, FALLBACK_GOLD_PRICE, FALLBACK_SILVER_PRICE } from '../src/services/marketService';
 
 export const ZakatCalculator: React.FC = () => {
-  const [goldPrice, setGoldPrice] = useState<number>(65.50); // Default GBP/g
-  const [silverPrice, setSilverPrice] = useState<number>(0.85); // Default GBP/g
+  const [goldPrice, setGoldPrice] = useState<number>(FALLBACK_GOLD_PRICE); // Default GBP/g (Market Estimate)
+  const [silverPrice, setSilverPrice] = useState<number>(FALLBACK_SILVER_PRICE); // Default GBP/g (Market Estimate)
+  const [nisabAdjustment, setNisabAdjustment] = useState<number>(0);
   const [isFetching, setIsFetching] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,42 +27,78 @@ export const ZakatCalculator: React.FC = () => {
   const [debts, setDebts] = useState<number>(0);
   const [expenses, setExpenses] = useState<number>(0);
 
-  const fetchLivePrices = async () => {
+  const { user, saveCalculation } = useFirebase();
+  const { financialProfile, updateFinancialProfile } = useFinancialData();
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isCooldown, setIsCooldown] = useState(false);
+
+  // Auto-fill from profile
+  useEffect(() => {
+    if (financialProfile?.total_assets_last_year && cash === 0) {
+      setCash(financialProfile.total_assets_last_year);
+    }
+    if (financialProfile?.nisab_adjustment !== undefined) {
+      setNisabAdjustment(financialProfile.nisab_adjustment);
+    }
+  }, [financialProfile]);
+
+  const handleUpdateProfile = async () => {
+    if (!user) return;
+    setIsUpdatingProfile(true);
+    try {
+      await updateFinancialProfile({
+        total_assets_last_year: totalAssets,
+        nisab_adjustment: nisabAdjustment
+      });
+      alert("Financial profile updated with current assets and adjustment!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update profile.");
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const label = prompt("Enter a label for this calculation (e.g., 'Ramadan 2024')") || `Zakat ${new Date().toLocaleDateString()}`;
+      await saveCalculation('zakat', label, {
+        cash, goldWeight, silverWeight, investments, businessAssets, moneyOwedToYou,
+        debts, expenses, goldPrice, silverPrice
+      }, zakatDue, '£');
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save calculation.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const fetchLivePrices = async (force = false) => {
     setIsFetching(true);
     setError(null);
     try {
-      const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
-                     import.meta.env.VITE_GEMINI_API_KEY || 
-                     localStorage.getItem('HISABBAYT_GEMINI_API_KEY');
+      const rates = await getLiveMarketRates(force);
       
-      if (!apiKey) {
-        throw new Error("API Key not found. Please set it in Settings or via environment variables.");
-      }
+      // Apply Nisab Adjustment %
+      const multiplier = 1 + (nisabAdjustment / 100);
+      setGoldPrice(rates.gold * multiplier);
+      setSilverPrice(rates.silver * multiplier);
       
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: `What is the current market price of Gold and Silver per gram in GBP (British Pounds) for today, March 2, 2026? 
-        Please provide the values in this format:
-        GOLD: [value]
-        SILVER: [value]
-        Only provide the numeric values after the labels.`,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      const text = response.text || "";
-      const goldMatch = text.match(/GOLD:\s*£?(\d+(\.\d+)?)/i);
-      const silverMatch = text.match(/SILVER:\s*£?(\d+(\.\d+)?)/i);
-
-      if (goldMatch) setGoldPrice(parseFloat(goldMatch[1]));
-      if (silverMatch) setSilverPrice(parseFloat(silverMatch[1]));
+      setLastUpdated(new Date(rates.timestamp).toLocaleTimeString());
       
-      if (goldMatch || silverMatch) {
-        setLastUpdated(new Date().toLocaleTimeString());
+      // Cooldown is handled by the service
+      const cooldown = localStorage.getItem('hisabbayt_market_cooldown');
+      if (cooldown && Date.now() - parseInt(cooldown) < 5 * 60 * 1000) {
+        setIsCooldown(true);
       } else {
-        throw new Error("Could not parse prices from AI response. Please try again or update manually.");
+        setIsCooldown(false);
       }
     } catch (err: any) {
       console.error("Error fetching prices:", err);
@@ -73,6 +107,11 @@ export const ZakatCalculator: React.FC = () => {
       setIsFetching(false);
     }
   };
+
+  // Auto-fetch on load
+  useEffect(() => {
+    fetchLivePrices();
+  }, []);
 
   const totalAssets = cash + (goldWeight * goldPrice) + (silverWeight * silverPrice) + investments + businessAssets + moneyOwedToYou;
   const totalLiabilities = debts + expenses;
@@ -96,12 +135,26 @@ export const ZakatCalculator: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-6 md:p-8 mb-8 border border-slate-100 dark:border-slate-800 transition-colors">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center relative">
               <TrendingUp className="w-6 h-6 text-amber-600 dark:text-amber-500" />
+              {!isFetching && lastUpdated && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center">
+                  <Zap size={8} className="text-white fill-current" />
+                </div>
+              )}
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 dark:text-white">Live Market Rates</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Current prices per gram (GBP)</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-800 dark:text-white">Live Market Rates</h3>
+                {!isFetching && lastUpdated && (
+                  <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold rounded uppercase tracking-wider">
+                    Live
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {lastUpdated ? `Prices updated as of ${lastUpdated}` : 'Current prices per gram (GBP)'}
+              </p>
             </div>
           </div>
           
@@ -132,6 +185,19 @@ export const ZakatCalculator: React.FC = () => {
                 />
               </div>
             </div>
+            <div className="bg-slate-50 dark:bg-slate-800 px-6 py-3 rounded-2xl border border-slate-100 dark:border-slate-700">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Nisab Adj. %</p>
+              <div className="flex items-center gap-1">
+                <input 
+                  type="number" 
+                  step="0.1"
+                  value={nisabAdjustment}
+                  onChange={(e) => setNisabAdjustment(parseFloat(e.target.value) || 0)}
+                  className="bg-transparent border-none outline-none text-lg font-black text-slate-800 dark:text-white w-16"
+                />
+                <span className="text-slate-400 font-bold">%</span>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               <a 
                 href="https://www.bullionvault.com/gold-price-chart.do" 
@@ -153,14 +219,17 @@ export const ZakatCalculator: React.FC = () => {
               </a>
             </div>
             <button 
-              onClick={fetchLivePrices}
-              disabled={isFetching}
+              onClick={() => fetchLivePrices(true)}
+              disabled={isFetching || isCooldown}
               className={`flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${
-                isFetching ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-100 dark:shadow-none'
+                isFetching || isCooldown 
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' 
+                : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-100 dark:shadow-none'
               }`}
+              title={isCooldown ? "Refresh available in 5 minutes" : "Refresh prices"}
             >
-              <RefreshIcon className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-              {isFetching ? 'Updating...' : 'Update Prices'}
+              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? 'Updating...' : isCooldown ? 'Refreshed' : 'Sync with NZF / Market Rates'}
             </button>
           </div>
         </div>
@@ -315,6 +384,32 @@ export const ZakatCalculator: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+              {user && (
+                <div className="space-y-3">
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || zakatDue === 0}
+                    className={`w-full mt-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all ${
+                      saveSuccess 
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' 
+                        : 'bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50'
+                    }`}
+                  >
+                    {isSaving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                    {saveSuccess ? 'Saved Successfully!' : 'Save Calculation'}
+                  </button>
+                  
+                  <button
+                    onClick={handleUpdateProfile}
+                    disabled={isUpdatingProfile}
+                    className="w-full py-3 rounded-2xl font-bold flex items-center justify-center gap-2 border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all text-sm"
+                  >
+                    {isUpdatingProfile ? <RefreshCw className="w-4 h-4 animate-spin" /> : <SaveIcon size={16} />}
+                    Update Financial Profile
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -379,6 +474,20 @@ export const ZakatCalculator: React.FC = () => {
           </div>
         </div>
         <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-emerald-500 rounded-full blur-[100px] opacity-10"></div>
+      </div>
+      {/* NZF Branding Footer */}
+      <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800 flex flex-col items-center gap-3 opacity-70">
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 rounded-full border border-slate-100 dark:border-slate-700/50">
+          <Info className="w-3.5 h-3.5 text-emerald-500" />
+          <span className="font-medium">Nisab weights used: 87.48g (Gold) / 612.36g (Silver). Calculated following NZF UK guidelines.</span>
+        </div>
+        <div className="flex items-center gap-4 text-[10px] text-slate-400 uppercase tracking-[0.2em] font-bold">
+          <span>NZF Aligned</span>
+          <span className="w-1 h-1 bg-slate-300 dark:bg-slate-700 rounded-full"></span>
+          <span>Evergreen Standards</span>
+          <span className="w-1 h-1 bg-slate-300 dark:bg-slate-700 rounded-full"></span>
+          <span>Precision Logic</span>
+        </div>
       </div>
     </div>
   );

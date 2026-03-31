@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Mail, MessageSquare, Crescent, ChevronRight } from './Icons';
+import { Mail, MessageSquare, Crescent, ChevronRight, Coffee } from './Icons';
 
 export const Contact: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -54,6 +54,28 @@ export const Contact: React.FC = () => {
               className="text-lg font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-2"
             >
               riazil32@gmail.com
+              <ChevronRight className="w-4 h-4" />
+            </a>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-xl border border-slate-100 dark:border-slate-800 transition-colors">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                <Coffee className="w-6 h-6 text-amber-600 dark:text-amber-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 dark:text-white">Support Us</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Help keep this tool free</p>
+              </div>
+            </div>
+            
+            <a 
+              href="https://www.buymeacoffee.com/hisabbayt" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-lg font-bold text-amber-600 dark:text-amber-500 hover:underline flex items-center gap-2"
+            >
+              Buy me a coffee
               <ChevronRight className="w-4 h-4" />
             </a>
           </div>

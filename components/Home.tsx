@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Crescent, Coins, ShoppingBag, Heart, ChevronRight } from './Icons';
+import { Crescent, Coins, ShoppingBag, Heart, ChevronRight, MapPin } from './Icons';
 import { TabType } from '../types';
 
 interface HomeProps {
@@ -32,6 +32,14 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
       icon: <Heart className="w-8 h-8 text-rose-600 dark:text-rose-400" />,
       color: 'bg-rose-50 dark:bg-rose-900/20',
       borderColor: 'border-rose-100 dark:border-rose-800',
+    },
+    {
+      id: 'masjid' as TabType,
+      name: 'Masjid Finder',
+      description: 'Locate nearby masjids and calculate travel times for driving, walking, or cycling.',
+      icon: <MapPin className="w-8 h-8 text-amber-600 dark:text-amber-400" />,
+      color: 'bg-amber-50 dark:bg-amber-900/20',
+      borderColor: 'border-amber-100 dark:border-amber-800',
     }
   ];
 
@@ -41,19 +49,18 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
       <div className="text-center mb-20">
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-bold uppercase tracking-widest mb-6 animate-in fade-in slide-in-from-bottom-4">
           <Crescent className="w-4 h-4 fill-current" />
-          Welcome to HisabBayt
+          Your Islamic Finance Toolkit
         </div>
         <h1 className="text-5xl md:text-6xl font-serif font-bold text-slate-900 dark:text-white mb-6 leading-tight">
-          Manage Your <span className="text-emerald-600 dark:text-emerald-400">Financial Obligations</span> with Clarity
+          Simple Tools for Your <span className="text-emerald-600 dark:text-emerald-400">Zakat & Mahr</span>
         </h1>
         <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
-          Authentic, real-time tools designed to help you fulfill your religious duties with precision and ease. 
-          Powered by live market data and grounded in Islamic principles.
+          Calculate your obligations with confidence. We use live market rates and traditional guidelines so you can focus on fulfilling your duties accurately.
         </p>
       </div>
 
       {/* Tools Grid */}
-      <div className="grid md:grid-cols-3 gap-8 mb-20">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
         {tools.map((tool) => (
           <button
             key={tool.id}
@@ -79,15 +86,15 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
       <div className="bg-slate-900 dark:bg-slate-950 rounded-[3rem] p-12 text-white relative overflow-hidden">
         <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <h2 className="text-3xl font-serif font-bold mb-6">Why Choose HisabBayt?</h2>
+            <h2 className="text-3xl font-serif font-bold mb-6">Built for the Modern Muslim</h2>
             <div className="space-y-8">
               <div className="flex gap-4">
                 <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
                   <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
                 </div>
                 <div>
-                  <h4 className="font-bold mb-1">Real-time Market Data</h4>
-                  <p className="text-sm text-slate-400">Live gold and silver prices fetched via Google Search to ensure your calculations are always accurate.</p>
+                  <h4 className="font-bold mb-1">Live Market Rates</h4>
+                  <p className="text-sm text-slate-400">We pull the latest gold and silver prices automatically, keeping your calculations accurate to the minute.</p>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -95,8 +102,8 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
                   <div className="w-2 h-2 rounded-full bg-blue-400"></div>
                 </div>
                 <div>
-                  <h4 className="font-bold mb-1">Shariah-First Approach</h4>
-                  <p className="text-sm text-slate-400">All calculations are based on established Islamic principles across major schools of thought.</p>
+                  <h4 className="font-bold mb-1">Islamic Standards</h4>
+                  <p className="text-sm text-slate-400">Our calculators follow established guidelines, making it easy to fulfill your duties correctly.</p>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -104,8 +111,8 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
                   <div className="w-2 h-2 rounded-full bg-purple-400"></div>
                 </div>
                 <div>
-                  <h4 className="font-bold mb-1">Privacy Focused</h4>
-                  <p className="text-sm text-slate-400">Your financial data stays on your device. We don't store any of your sensitive information.</p>
+                  <h4 className="font-bold mb-1">Private & Secure</h4>
+                  <p className="text-sm text-slate-400">Your data is yours. We use secure cloud storage only if you choose to save your history.</p>
                 </div>
               </div>
             </div>

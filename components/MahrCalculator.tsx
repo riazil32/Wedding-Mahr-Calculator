@@ -1,9 +1,12 @@
 
-import React, { useState } from 'react';
-import { Info, Crescent, X, ChevronRight, ExternalLink } from './Icons';
+import React, { useState, useEffect } from 'react';
+import { Info, Crescent, X, ChevronRight, ExternalLink, Save, RefreshCw } from './Icons';
 import { MAHR_TYPES, SILVER_NISAB_DIVISOR } from '../constants';
 import { MahrType } from '../types';
-import { GoogleGenAI } from "@google/genai";
+import { useFirebase } from '../src/context/FirebaseContext';
+import { useFinancialData } from '../src/context/UserContext';
+import { Save as SaveIcon } from 'lucide-react';
+import { getLiveMarketRates, FALLBACK_SILVER_PRICE } from '../src/services/marketService';
 
 const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -12,54 +15,85 @@ const RefreshIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export const MahrCalculator: React.FC = () => {
-  const [silverPricePerGram, setSilverPricePerGram] = useState<number>(0.85); // Modern average in GBP
+  const [silverPricePerGram, setSilverPricePerGram] = useState<number>(FALLBACK_SILVER_PRICE); // Modern average in GBP
   const [selectedMahrInfo, setSelectedMahrInfo] = useState<MahrType | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sources, setSources] = useState<{title: string, uri: string}[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLivePrice = async () => {
-    setIsFetching(true);
-    setSources([]);
-    setError(null);
+  const { user, saveCalculation } = useFirebase();
+  const { financialProfile, updateFinancialProfile } = useFinancialData();
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [customMahrTotal, setCustomMahrTotal] = useState<number>(0);
+  const [customMahrPaid, setCustomMahrPaid] = useState<number>(0);
+
+  // Auto-fetch market rates on mount
+  useEffect(() => {
+    const fetchInitialRates = async () => {
+      setIsFetching(true);
+      try {
+        const rates = await getLiveMarketRates();
+        setSilverPricePerGram(rates.silver);
+        setLastUpdated(new Date(rates.timestamp).toLocaleTimeString());
+      } catch (err) {
+        console.error("Mahr Calculator: Failed to fetch initial rates", err);
+      } finally {
+        setIsFetching(false);
+      }
+    };
+    fetchInitialRates();
+  }, []);
+
+  // Auto-fill from profile
+  useEffect(() => {
+    if (financialProfile) {
+      if (financialProfile.mahr_total && customMahrTotal === 0) {
+        setCustomMahrTotal(financialProfile.mahr_total);
+      }
+      if (financialProfile.mahr_paid && customMahrPaid === 0) {
+        setCustomMahrPaid(financialProfile.mahr_paid);
+      }
+    }
+  }, [financialProfile]);
+
+  const handleUpdateProfile = async (total?: number, paid?: number) => {
+    if (!user) return;
+    setIsUpdatingProfile(true);
     try {
-      const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
-                     import.meta.env.VITE_GEMINI_API_KEY || 
-                     localStorage.getItem('HISABBAYT_GEMINI_API_KEY');
-
-      if (!apiKey) {
-        throw new Error("API Key not found. Please set it in Settings or via environment variables.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: "What is the current market price of silver per gram in GBP (British Pounds)? Please provide just the numeric value in your response text, and the sources in grounding metadata.",
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
+      await updateFinancialProfile({
+        mahr_total: total ?? customMahrTotal,
+        mahr_paid: paid ?? customMahrPaid
       });
-
-      const text = response.text || "";
-      const match = text.match(/(\d+(\.\d+)?)/);
-      if (match) {
-        setSilverPricePerGram(parseFloat(match[1]));
-        setLastUpdated(new Date().toLocaleTimeString());
-      }
-
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        const foundSources = chunks
-          .filter(c => c.web && c.web.title && c.web.uri)
-          .map(c => ({ title: c.web!.title!, uri: c.web!.uri! }));
-        setSources(foundSources);
-      }
-    } catch (err: any) {
-      console.error("Error fetching silver price:", err);
-      setError(`Error: ${err.message || "Market data temporarily unavailable"}. Please check your API key in Settings.`);
+      alert("Mahr profile updated!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update profile.");
     } finally {
-      setIsFetching(false);
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleSave = async (mahr: MahrType) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const label = prompt("Enter a label for this calculation (e.g., 'Wedding Mahr')") || `Mahr ${mahr.name}`;
+      const value = mahr.grams * silverPricePerGram;
+      await saveCalculation('mahr', label, {
+        mahrType: mahr.name,
+        grams: mahr.grams,
+        silverPrice: silverPricePerGram
+      }, value, '£');
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save calculation.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -77,7 +111,7 @@ export const MahrCalculator: React.FC = () => {
             <h4 className="font-bold text-blue-900 dark:text-blue-300 mb-1">Market Valuation Help</h4>
             <p className="text-blue-800 dark:text-blue-400 leading-relaxed">
               Islamic Mahr traditions are historically tied to the weight of Silver Dirhams. 
-              Click the "Update Live" button to fetch current market rates via Google Search.
+              The values below are automatically updated based on live market rates for Silver.
             </p>
           </div>
         </div>
@@ -109,27 +143,13 @@ export const MahrCalculator: React.FC = () => {
             </div>
           </div>
           <div className="space-y-4">
-            <a 
-              href="https://www.bullionvault.com/silver-price-chart.do" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Check Live Silver Price Manually
-            </a>
-            <button 
-              onClick={fetchLivePrice}
-              disabled={isFetching}
-              className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] ${
-                isFetching 
-                ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' 
-                : 'bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 shadow-slate-200 dark:shadow-none border border-transparent dark:border-slate-700'
-              }`}
-            >
-              <RefreshIcon className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
-              {isFetching ? 'Fetching Market Data...' : 'Update Live Price'}
-            </button>
+            <div className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50 shadow-sm transition-all">
+              <RefreshCw className={`w-5 h-5 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? 'Syncing Market Data...' : 'Live Market Price Active'}
+            </div>
+            <p className="text-[10px] text-center text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
+              Synced with Zakat & Dashboard Market Rates
+            </p>
           </div>
         </div>
 
@@ -151,7 +171,7 @@ export const MahrCalculator: React.FC = () => {
         {MAHR_TYPES.map(mahr => {
           const value = (mahr.grams * silverPricePerGram).toFixed(2);
           return (
-            <div key={mahr.id} className="bg-white dark:bg-slate-900 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-800 overflow-hidden group hover:shadow-2xl transition-all">
+            <div key={mahr.id} className={`${mahr.bgColor} dark:bg-slate-900 rounded-3xl shadow-lg border-2 ${mahr.borderColor} dark:border-slate-800 overflow-hidden group hover:shadow-2xl transition-all`}>
               <div className={`bg-gradient-to-br ${mahr.color} p-6 text-white`}>
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="text-xl font-bold">{mahr.name}</h3>
@@ -160,21 +180,109 @@ export const MahrCalculator: React.FC = () => {
                 <p className="text-xs font-medium opacity-80 uppercase tracking-widest">{mahr.arabicName}</p>
               </div>
               <div className="p-6">
-                <p className="text-3xl font-black text-slate-800 dark:text-white mb-4">£{parseFloat(value).toLocaleString()}</p>
-                <div className={`${mahr.bgColor} dark:bg-slate-800/50 ${mahr.textColor} dark:text-slate-300 rounded-2xl p-4 text-xs font-semibold mb-6 min-h-[80px]`}>
-                  {mahr.description}
-                  <div className="mt-2 text-[10px] opacity-70">Weight: {mahr.grams}g Silver</div>
+                <p className={`text-3xl font-black ${mahr.textColor} dark:text-white mb-4`}>£{parseFloat(value).toLocaleString()}</p>
+                <div className="bg-white/50 dark:bg-slate-800/50 rounded-2xl p-4 text-xs font-semibold mb-6 min-h-[80px] border border-white/20">
+                  <span className={`${mahr.textColor} dark:text-slate-300`}>{mahr.description}</span>
+                  <div className={`mt-2 text-[10px] opacity-70 ${mahr.textColor} dark:text-slate-400`}>Weight: {mahr.grams}g Silver</div>
                 </div>
-                <button 
-                  onClick={() => setSelectedMahrInfo(mahr)}
-                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  View Details <ChevronRight className="w-4 h-4" />
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setSelectedMahrInfo(mahr)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 border-2 ${mahr.borderColor} dark:border-slate-800 rounded-xl text-sm font-bold ${mahr.textColor} dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors`}
+                  >
+                    Details <ChevronRight className="w-4 h-4" />
+                  </button>
+                  {user && (
+                    <div className="flex gap-1">
+                      <button 
+                        onClick={() => handleSave(mahr)}
+                        disabled={isSaving}
+                        className={`p-3 bg-gradient-to-br ${mahr.color} text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50`}
+                        title="Save Calculation"
+                      >
+                        <Save className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const val = mahr.grams * silverPricePerGram;
+                          handleUpdateProfile(val, 0);
+                        }}
+                        disabled={isUpdatingProfile}
+                        className={`p-3 border-2 ${mahr.borderColor} dark:border-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50`}
+                        title="Set as My Mahr Total"
+                      >
+                        <SaveIcon size={20} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-6 md:p-8 mb-12 border border-slate-100 dark:border-slate-800 transition-colors">
+        <h3 className="text-xl font-serif font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+          <SaveIcon className="w-5 h-5 text-emerald-600" />
+          My Mahr Tracking
+        </h3>
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="space-y-4">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Total Mahr Amount (GBP)</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 font-bold text-lg">£</span>
+              <input 
+                type="number" 
+                value={customMahrTotal}
+                onChange={(e) => setCustomMahrTotal(parseFloat(e.target.value) || 0)}
+                className="w-full pl-10 pr-4 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-700 rounded-2xl transition-all outline-none font-bold text-slate-800 dark:text-white text-xl"
+              />
+            </div>
+          </div>
+          <div className="space-y-4">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Amount Paid So Far (GBP)</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 font-bold text-lg">£</span>
+              <input 
+                type="number" 
+                value={customMahrPaid}
+                onChange={(e) => setCustomMahrPaid(parseFloat(e.target.value) || 0)}
+                className="w-full pl-10 pr-4 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-emerald-400 focus:bg-white dark:focus:bg-slate-700 rounded-2xl transition-all outline-none font-bold text-slate-800 dark:text-white text-xl"
+              />
+            </div>
+          </div>
+        </div>
+        
+        {customMahrTotal > 0 && (
+          <div className="mt-8">
+            <div className="flex justify-between text-sm font-bold mb-2">
+              <span className="text-slate-600 dark:text-slate-400">Payment Progress</span>
+              <span className="text-emerald-600 dark:text-emerald-400">{Math.min(100, Math.round((customMahrPaid / customMahrTotal) * 100))}%</span>
+            </div>
+            <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
+              <div 
+                className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-1000"
+                style={{ width: `${Math.min(100, (customMahrPaid / customMahrTotal) * 100)}%` }}
+              ></div>
+            </div>
+            <div className="flex justify-between mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              <span>Paid: £{customMahrPaid.toLocaleString()}</span>
+              <span>Remaining: £{Math.max(0, customMahrTotal - customMahrPaid).toLocaleString()}</span>
+            </div>
+          </div>
+        )}
+
+        {user && (
+          <button
+            onClick={() => handleUpdateProfile()}
+            disabled={isUpdatingProfile}
+            className="w-full mt-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 dark:shadow-none"
+          >
+            {isUpdatingProfile ? <RefreshCw className="w-5 h-5 animate-spin" /> : <SaveIcon className="w-5 h-5" />}
+            Update Mahr Profile
+          </button>
+        )}
       </div>
 
       <div className="bg-slate-900 dark:bg-slate-950 rounded-[2.5rem] p-8 md:p-12 text-white relative overflow-hidden transition-colors">
