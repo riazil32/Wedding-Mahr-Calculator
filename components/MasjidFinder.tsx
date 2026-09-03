@@ -16,6 +16,112 @@ interface SearchResults {
   masjids: Masjid[];
 }
 
+function calculateDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3958.8; // Earth's radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+async function searchMasjidsClient(
+  location?: { lat: number; lng: number },
+  query?: string
+): Promise<Masjid[]> {
+  let lat = location?.lat;
+  let lng = location?.lng;
+
+  // If query is provided, geocode it to coordinates
+  if ((!lat || !lng) && query) {
+    const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+      query
+    )}&format=json&limit=1`;
+    const geoRes = await fetch(geoUrl, {
+      headers: { Accept: 'application/json' },
+    });
+    const geoData = await geoRes.json();
+    if (!geoData || geoData.length === 0) {
+      throw new Error(`Could not locate postcode or area "${query}". Please check the spelling.`);
+    }
+    lat = parseFloat(geoData[0].lat);
+    lng = parseFloat(geoData[0].lon);
+  }
+
+  if (!lat || !lng) {
+    throw new Error('Please enter a postcode or allow location access.');
+  }
+
+  // Query nearby Muslim places of worship within ~5 miles
+  const overpassQuery = `[out:json][timeout:15];(node["amenity"="place_of_worship"]["religion"="muslim"](around:8000,${lat},${lng});way["amenity"="place_of_worship"]["religion"="muslim"](around:8000,${lat},${lng}););out center tags 15;`;
+  const opRes = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    body: `data=${encodeURIComponent(overpassQuery)}`,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+
+  if (!opRes.ok) {
+    throw new Error('Could not fetch local masjids. Please try again.');
+  }
+
+  const opData = await opRes.json();
+  const elements = opData.elements || [];
+  if (elements.length === 0) {
+    return [];
+  }
+
+  const mapped: (Masjid & { distVal: number })[] = [];
+
+  for (const el of elements) {
+    const tags = el.tags || {};
+    const name = tags.name || tags['name:en'] || tags.alt_name;
+    if (!name) continue;
+
+    const elLat = el.lat || el.center?.lat;
+    const elLng = el.lon || el.center?.lon;
+    if (!elLat || !elLng) continue;
+
+    const distMiles = calculateDistanceMiles(lat, lng, elLat, elLng);
+    const addressParts = [
+      tags['addr:housenumber'],
+      tags['addr:street'],
+      tags['addr:suburb'] || tags['addr:place'],
+      tags['addr:postcode'] || tags.postal_code,
+      tags['addr:city'],
+    ].filter(Boolean);
+
+    const address = addressParts.join(', ') || tags['addr:city'] || 'Local Area';
+    const walkMins = Math.max(1, Math.round((distMiles / 3) * 60));
+    const driveMins = Math.max(1, Math.round((distMiles / 15) * 60));
+    const cycleMins = Math.max(1, Math.round((distMiles / 10) * 60));
+
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      `${name}, ${address}`
+    )}`;
+
+    mapped.push({
+      name,
+      address,
+      distance: distMiles < 0.1 ? '< 0.1 miles' : `${distMiles.toFixed(1)} miles`,
+      driveTime: `${driveMins} mins`,
+      walkTime: `${walkMins} mins`,
+      cycleTime: `${cycleMins} mins`,
+      mapsUrl,
+      distVal: distMiles,
+    });
+  }
+
+  mapped.sort((a, b) => a.distVal - b.distVal);
+  return mapped.slice(0, 10).map(({ distVal, ...m }) => m);
+}
+
 export const MasjidFinder: React.FC = () => {
   const [postcode, setPostcode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,25 +134,41 @@ export const MasjidFinder: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/find-masjids', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ location, query }),
-      });
+      let masjids: Masjid[] = [];
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch results from server');
+      // 1. Try server endpoint first (when running with Express backend)
+      try {
+        const response = await fetch('/api/find-masjids', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ location, query: query?.trim() }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data?.masjids) && data.masjids.length > 0) {
+            masjids = data.masjids;
+          }
+        }
+      } catch (serverErr) {
+        console.warn('Backend server not present (e.g. static Netlify host), running client search:', serverErr);
       }
 
-      const data = await response.json();
-      setResults({
-        masjids: data.masjids || []
-      });
-    } catch (err) {
+      // 2. If server returned no results or is unavailable (Netlify static hosting), run client search
+      if (!masjids || masjids.length === 0) {
+        masjids = await searchMasjidsClient(location, query?.trim());
+      }
+
+      if (!masjids || masjids.length === 0) {
+        setError('No nearby masjids found. Please check the postcode and try again.');
+      } else {
+        setResults({ masjids });
+      }
+    } catch (err: any) {
       console.error(err);
-      setError("Failed to find results. Please check your connection and try again.");
+      setError(err?.message || 'Failed to find results. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
