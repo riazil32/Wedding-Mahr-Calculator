@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   TrendingUp, 
@@ -11,9 +11,20 @@ import {
   Coins, 
   History,
   RefreshCw,
-  Zap
+  Zap,
+  BarChart3
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip
+} from 'recharts';
 import { useUser } from '../src/context/UserContext';
+import { useFirebase } from '../src/context/FirebaseContext';
 import { TabType } from '../types';
 import { getLiveMarketRates } from '../src/services/marketService';
 import { FITRANA_RATE } from '../constants';
@@ -22,12 +33,24 @@ interface DashboardProps {
   onNavigate: (tab: TabType) => void;
 }
 
+interface SavedCalculationRecord {
+  id: string;
+  type: 'zakat' | 'fitrana' | 'mahr';
+  label?: string;
+  result: number;
+  currency?: string;
+  createdAt: string;
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const { user, financialProfile, stealthMode, setStealthMode } = useUser();
+  const { getCalculations } = useFirebase();
   const [nisab, setNisab] = useState({ gold: 0, silver: 0 });
   const [loadingNisab, setLoadingNisab] = useState(true);
   const [lastFetched, setLastFetched] = useState<number | null>(null);
   const [isCooldown, setIsCooldown] = useState(false);
+  const [calculations, setCalculations] = useState<SavedCalculationRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
   const fetchNisab = async (force = false) => {
     setLoadingNisab(true);
@@ -45,8 +68,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       });
       setLastFetched(rates.timestamp);
       
-      // Cooldown is handled by the service, but we can check the local flag
-      // if we want to disable the button in the UI
       const cooldown = localStorage.getItem('hisabbayt_market_cooldown');
       if (cooldown && Date.now() - parseInt(cooldown) < 5 * 60 * 1000) {
         setIsCooldown(true);
@@ -64,6 +85,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     fetchNisab();
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      setCalculations([]);
+      setLoadingHistory(false);
+      return;
+    }
+    setLoadingHistory(true);
+    const unsubscribe = getCalculations((data: SavedCalculationRecord[]) => {
+      setCalculations(data);
+      setLoadingHistory(false);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
   const formatCurrency = (amount: number | undefined) => {
     if (amount === undefined) return '—';
     const formatted = new Intl.NumberFormat('en-GB', {
@@ -78,12 +113,73 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     );
   };
 
+  // Build 12-month historical Zakat payment series
+  const { chartData, totalPastYearZakat, zakatPaymentsCount } = useMemo(() => {
+    const now = new Date();
+    const oneYearAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+
+    // Generate the last 12 calendar months in chronological order
+    const months: {
+      key: string;
+      monthLabel: string;
+      fullMonthLabel: string;
+      zakatAmount: number;
+      fitranaAmount: number;
+      entriesCount: number;
+    }[] = [];
+
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+      const fullMonthLabel = d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      months.push({
+        key,
+        monthLabel,
+        fullMonthLabel,
+        zakatAmount: 0,
+        fitranaAmount: 0,
+        entriesCount: 0,
+      });
+    }
+
+    const monthMap = new Map(months.map((m) => [m.key, m]));
+    let totalZakat = 0;
+    let count = 0;
+
+    calculations.forEach((calc) => {
+      if (calc.type !== 'zakat' && calc.type !== 'fitrana') return;
+      const date = new Date(calc.createdAt);
+      if (isNaN(date.getTime()) || date < oneYearAgo) return;
+
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const bucket = monthMap.get(key);
+      const amount = Number(calc.result) || 0;
+
+      if (bucket) {
+        if (calc.type === 'zakat') {
+          bucket.zakatAmount = Number((bucket.zakatAmount + amount).toFixed(2));
+          bucket.entriesCount += 1;
+          totalZakat += amount;
+          count += 1;
+        } else if (calc.type === 'fitrana') {
+          bucket.fitranaAmount = Number((bucket.fitranaAmount + amount).toFixed(2));
+        }
+      }
+    });
+
+    return {
+      chartData: months,
+      totalPastYearZakat: totalZakat,
+      zakatPaymentsCount: count,
+    };
+  }, [calculations]);
+
   const calculateDaysRemaining = (dateStr: string | undefined) => {
     if (!dateStr) return null;
     const anniversary = new Date(dateStr);
     const today = new Date();
     
-    // Set anniversary to this year or next year
     anniversary.setFullYear(today.getFullYear());
     if (anniversary < today) {
       anniversary.setFullYear(today.getFullYear() + 1);
@@ -305,6 +401,109 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </motion.div>
       </div>
 
+      {/* Historical Zakat Payments Line Chart (Past 12 Months) */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+        className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <div className="flex items-center gap-2 text-[#064e3b] dark:text-emerald-400 mb-1">
+              <BarChart3 size={20} />
+              <h2 className="font-bold uppercase tracking-wider text-xs">Zakat Payment History (Past 12 Months)</h2>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              Monthly visualization of your recorded Zakat obligations and payments over the last year
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="px-4 py-2.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/60">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">12-Month Total</p>
+              <p className="text-lg font-bold text-[#064e3b] dark:text-emerald-300">
+                {formatCurrency(totalPastYearZakat)}
+              </p>
+            </div>
+            <div className="px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Recorded Entries</p>
+              <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                {zakatPaymentsCount} {zakatPaymentsCount === 1 ? 'Payment' : 'Payments'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {loadingHistory ? (
+          <div className="h-72 flex items-center justify-center">
+            <RefreshCw className="w-6 h-6 text-emerald-500 animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className={`h-72 w-full transition-all ${stealthMode ? 'blur-md select-none pointer-events-none' : ''}`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis
+                    dataKey="monthLabel"
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    axisLine={{ stroke: '#cbd5e1' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tickFormatter={(val) => `£${val}`}
+                    tick={{ fontSize: 12, fill: '#64748b' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={65}
+                  />
+                  <Tooltip
+                    formatter={(value: any, name?: any) => [
+                      new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(Number(value) || 0),
+                      name === 'zakatAmount' ? 'Zakat al-Mal' : 'Fitrana',
+                    ]}
+                    labelFormatter={(_label, payload) =>
+                      payload?.[0]?.payload?.fullMonthLabel || _label
+                    }
+                    contentStyle={{
+                      backgroundColor: '#0f172a',
+                      border: '1px solid #1e293b',
+                      borderRadius: '1rem',
+                      color: '#f8fafc',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                    }}
+                    itemStyle={{ color: '#10b981' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="zakatAmount"
+                    name="zakatAmount"
+                    stroke="#059669"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: '#059669', strokeWidth: 2, stroke: '#ffffff' }}
+                    activeDot={{ r: 6, fill: '#d4af37', stroke: '#064e3b', strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {zakatPaymentsCount === 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+                <span>No saved Zakat payments found in the past 12 months. Save a calculation in the Zakat Calculator to track your annual trend.</span>
+                <button
+                  onClick={() => onNavigate('zakat')}
+                  className="shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all"
+                >
+                  Record Zakat Calculation
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+
       {/* Quick Action Cards */}
       <div className="space-y-4">
         <h2 className="text-xl font-bold text-[#064e3b] dark:text-emerald-400">Quick Actions</h2>
@@ -356,7 +555,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
             <div className="flex items-end">
               <button 
-                onClick={() => onNavigate('zakat')} // Zakat tab has the adjustment field
+                onClick={() => onNavigate('zakat')}
                 className="text-xs font-bold uppercase tracking-widest border-b border-[#d4af37] text-[#d4af37] hover:text-white hover:border-white transition-all"
               >
                 Update Profile

@@ -36,7 +36,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
     {
       id: 'masjid' as TabType,
       name: 'Masjid Finder',
-      description: 'Locate nearby masjids and calculate travel times for driving, walking, or cycling.',
+      description: 'Find the closest masjid for daily Jama\'ah, Jumu\'ah, Taraweeh, and Eid prayers, plus public facilities nearby.',
       icon: <MapPin className="w-8 h-8 text-amber-600 dark:text-amber-400" />,
       color: 'bg-amber-50 dark:bg-amber-900/20',
       borderColor: 'border-amber-100 dark:border-amber-800',

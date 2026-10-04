@@ -13,11 +13,11 @@ import Dashboard from './components/Dashboard';
 import { TabType } from './types';
 import { FirebaseProvider, useFirebase } from './src/context/FirebaseContext';
 import { UserProvider } from './src/context/UserContext';
-import { LogIn, LogOut, User as UserIcon, History, LayoutDashboard } from './components/Icons';
+import { LogIn, LogOut, User as UserIcon, History, LayoutDashboard, RefreshCw, X } from './components/Icons';
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('home');
-  const { user, signIn, signOut } = useFirebase();
+  const { user, signingIn, authError, clearAuthError, signIn, signOut } = useFirebase();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [language, setLanguage] = useState('en');
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -168,10 +168,15 @@ const AppContent: React.FC = () => {
               ) : (
                 <button
                   onClick={signIn}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-md shadow-emerald-100 dark:shadow-none text-xs"
+                  disabled={signingIn}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl font-bold transition-all shadow-md shadow-emerald-100 dark:shadow-none text-xs"
                 >
-                  <LogIn className="w-3.5 h-3.5" />
-                  Sign In
+                  {signingIn ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <LogIn className="w-3.5 h-3.5" />
+                  )}
+                  {signingIn ? 'Signing in...' : 'Sign In'}
                 </button>
               )}
 
@@ -225,6 +230,21 @@ const AppContent: React.FC = () => {
         </div>
       </header>
 
+      {authError && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 flex items-center justify-between gap-4 text-xs font-semibold text-rose-700 dark:text-rose-300">
+            <span>{authError}</span>
+            <button
+              onClick={clearAuthError}
+              className="p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
+              aria-label="Dismiss error"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <main className="pb-24">
         {activeTab === 'home' && <Home onNavigate={setActiveTab} />}
@@ -268,12 +288,21 @@ const AppContent: React.FC = () => {
             Saved
           </button>
           <button
+            onClick={() => setActiveTab('masjid')}
+            className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-[1.5rem] font-bold text-xs transition-all ${
+              activeTab === 'masjid' ? 'bg-emerald-600 text-white' : 'text-slate-400'
+            }`}
+          >
+            <MapPin className="w-4 h-4" />
+            Masjid
+          </button>
+          <button
             onClick={() => setActiveTab('mahr')}
-            className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.5rem] font-bold text-sm transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-[1.5rem] font-bold text-xs transition-all ${
               activeTab === 'mahr' ? 'bg-emerald-600 text-white' : 'text-slate-400'
             }`}
           >
-            <Heart className="w-5 h-5" />
+            <Heart className="w-4 h-4" />
             Mahr
           </button>
         </div>

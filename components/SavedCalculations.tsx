@@ -3,7 +3,7 @@ import { useFirebase } from '../src/context/FirebaseContext';
 import { History, Trash2, Coins, ShoppingBag, Heart, ChevronRight, RefreshCw } from './Icons';
 
 export const SavedCalculations: React.FC = () => {
-  const { user, getCalculations, deleteCalculation } = useFirebase();
+  const { user, signingIn, signIn, getCalculations, deleteCalculation } = useFirebase();
   const [calculations, setCalculations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,9 +23,17 @@ export const SavedCalculations: React.FC = () => {
           <History className="w-10 h-10" />
         </div>
         <h2 className="text-2xl font-serif font-bold text-slate-900 dark:text-white mb-4">Sign in to view history</h2>
-        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-          Create an account to securely save and access your Zakat, Fitrana, and Mahr calculations from any device.
+        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6">
+          Sign in with your Google account to securely save and access your Zakat, Fitrana, and Mahr calculations from any device.
         </p>
+        <button
+          onClick={signIn}
+          disabled={signingIn}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-2xl font-bold transition-all shadow-lg shadow-emerald-600/20 text-sm"
+        >
+          {signingIn && <RefreshCw className="w-4 h-4 animate-spin" />}
+          {signingIn ? 'Signing in...' : 'Sign In with Google'}
+        </button>
       </div>
     );
   }
